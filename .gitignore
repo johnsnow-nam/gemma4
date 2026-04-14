@@ -4,3 +4,11 @@ __pycache__/
 *.pyo
 .webui_secret_key
 ~/.gemma-cli/
+
+# 가상환경
+.venv/
+venv/
+
+# 환경변수
+.env
+!.env.example
