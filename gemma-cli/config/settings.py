@@ -14,7 +14,7 @@ CONFIG_DIR = Path.home() / ".gemma-cli"
 CONFIG_FILE = CONFIG_DIR / "config.yaml"
 
 DEFAULTS: dict[str, Any] = {
-    "model": "gemma4:26b",
+    "model": "gemma4:e2b",
     "ollama_url": "http://localhost:11434",
     "temperature": 0.3,
     "num_ctx": 8192,
