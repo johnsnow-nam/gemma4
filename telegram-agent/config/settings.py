@@ -7,7 +7,13 @@ load_dotenv()
 
 # ── 텔레그램
 TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
-ALLOWED_USER_ID: int = int(os.getenv("ALLOWED_USER_ID", "0"))
+
+# 단일 ID 또는 쉼표 구분 복수 ID 지원 (예: "111,222,333")
+_raw_ids = os.getenv("ALLOWED_USER_IDS", os.getenv("ALLOWED_USER_ID", "0"))
+ALLOWED_USER_IDS: set[int] = {
+    int(x.strip()) for x in _raw_ids.split(",") if x.strip().isdigit()
+}
+ALLOWED_USER_ID: int = next(iter(ALLOWED_USER_IDS), 0)  # 하위 호환
 
 # ── Ollama
 OLLAMA_URL: str = os.getenv("OLLAMA_URL", "http://localhost:11434")

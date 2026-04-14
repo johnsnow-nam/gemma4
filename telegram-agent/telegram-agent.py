@@ -18,7 +18,7 @@ from telegram.ext import (
 )
 
 from agent.executor import TaskExecutor
-from config.settings import TELEGRAM_BOT_TOKEN, ALLOWED_USER_ID
+from config.settings import TELEGRAM_BOT_TOKEN, ALLOWED_USER_IDS
 from tools.tool_registry import get_help_text
 
 load_dotenv()
@@ -27,6 +27,8 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
+# SEC-003: httpx URL 로그에 Bot Token 노출 차단
+logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 # ─── 전역 TaskExecutor ────────────────────────────────────────────────────────
@@ -37,9 +39,9 @@ MAX_MSG_LEN = 4096  # Telegram 메시지 최대 길이
 
 # ─── 인증 확인 ────────────────────────────────────────────────────────────────
 def _is_authorized(update: Update) -> bool:
-    if not ALLOWED_USER_ID:
+    if not ALLOWED_USER_IDS or ALLOWED_USER_IDS == {0}:
         return True
-    return update.effective_user.id == ALLOWED_USER_ID
+    return update.effective_user.id in ALLOWED_USER_IDS
 
 
 async def _deny(update: Update) -> None:

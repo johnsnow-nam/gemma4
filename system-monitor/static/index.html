@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI System Monitor</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+
+<!-- ── 헤더 ───────────────────────────────────────────── -->
+<header>
+  <h1>🖥&nbsp; <span>AI</span> System Monitor</h1>
+  <div class="live-badge">
+    <div class="live-dot"></div>
+    <span id="live-text">● LIVE</span>
+    &nbsp;·&nbsp;
+    <span id="timestamp">--:--:--</span>
+  </div>
+</header>
+
+<!-- ── 경고 배너 ──────────────────────────────────────── -->
+<div id="alert-banner"></div>
+
+<main>
+
+  <!-- ── 서비스 상태 ─────────────────────────────────── -->
+  <section>
+    <div class="section-title">서비스 상태</div>
+    <div class="service-grid">
+
+      <!-- Ollama -->
+      <div class="svc-card" id="svc-ollama">
+        <div class="svc-header">
+          <span class="svc-icon">AI</span>
+          <span class="svc-label">Ollama</span>
+        </div>
+        <div class="status-badge unknown">● 확인 중</div>
+        <div class="svc-uptime"></div>
+        <div class="svc-actions">
+          <button class="btn btn-start"   hidden onclick="serviceAction('ollama','start')">▶ Start</button>
+          <button class="btn btn-stop"    hidden onclick="serviceAction('ollama','stop')">■ Stop</button>
+          <button class="btn btn-restart" hidden onclick="serviceAction('ollama','restart')">↺ Restart</button>
+          <button class="btn"                    onclick="loadLogsFor('ollama')">로그</button>
+        </div>
+      </div>
+
+      <!-- Open WebUI -->
+      <div class="svc-card" id="svc-open-webui">
+        <div class="svc-header">
+          <span class="svc-icon">WEB</span>
+          <span class="svc-label">Open WebUI</span>
+        </div>
+        <div class="status-badge unknown">● 확인 중</div>
+        <div class="svc-uptime"></div>
+        <div class="svc-actions">
+          <button class="btn btn-start"   hidden onclick="serviceAction('open-webui','start')">▶ Start</button>
+          <button class="btn btn-stop"    hidden onclick="serviceAction('open-webui','stop')">■ Stop</button>
+          <button class="btn btn-restart" hidden onclick="serviceAction('open-webui','restart')">↺ Restart</button>
+          <button class="btn"                    onclick="loadLogsFor('open-webui')">로그</button>
+        </div>
+      </div>
+
+      <!-- Telegram Bot -->
+      <div class="svc-card" id="svc-telegram-bot">
+        <div class="svc-header">
+          <span class="svc-icon">BOT</span>
+          <span class="svc-label">Telegram Bot</span>
+        </div>
+        <div class="status-badge unknown">● 확인 중</div>
+        <div class="svc-uptime"></div>
+        <div class="svc-actions">
+          <button class="btn btn-start"   hidden onclick="serviceAction('telegram-bot','start')">▶ Start</button>
+          <button class="btn btn-stop"    hidden onclick="serviceAction('telegram-bot','stop')">■ Stop</button>
+          <button class="btn btn-restart" hidden onclick="serviceAction('telegram-bot','restart')">↺ Restart</button>
+          <button class="btn"                    onclick="loadLogsFor('telegram-bot')">로그</button>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── GPU 상태 ──────────────────────────────────────── -->
+  <section>
+    <div class="section-title">GPU</div>
+    <div class="gpu-card">
+      <div class="gpu-header">
+        <span class="gpu-name" id="gpu-name">RTX 5070</span>
+      </div>
+      <div class="gpu-stats">
+        <div class="stat-item">
+          <div class="stat-value" id="gpu-temp-val">--°C</div>
+          <div class="stat-label">온도</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="gpu-util-val">--%</div>
+          <div class="stat-label">GPU 사용률</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="vram-label">-- GB</div>
+          <div class="stat-label">VRAM</div>
+        </div>
+      </div>
+      <div class="progress-wrap">
+        <div class="progress-label">
+          <span>VRAM</span>
+          <span id="vram-pct">--%</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" id="vram-fill" style="width:0%"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── 로드된 모델 ───────────────────────────────────── -->
+  <section>
+    <div class="section-title">로드된 Ollama 모델</div>
+    <div class="model-list" id="model-list">
+      <span class="model-empty">데이터 로딩 중...</span>
+    </div>
+  </section>
+
+  <!-- ── 시스템 리소스 ─────────────────────────────────── -->
+  <section>
+    <div class="section-title">시스템 리소스</div>
+    <div class="resource-grid">
+
+      <!-- CPU -->
+      <div class="resource-card">
+        <div class="resource-header">
+          <span class="resource-label">CPU</span>
+          <span class="resource-value" id="cpu-val">--%</span>
+        </div>
+        <div class="progress-wrap">
+          <div class="progress-bar">
+            <div class="progress-fill" id="cpu-fill" style="width:0%"></div>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--text-dim);margin-top:4px" id="cpu-label"></div>
+      </div>
+
+      <!-- RAM -->
+      <div class="resource-card">
+        <div class="resource-header">
+          <span class="resource-label">RAM</span>
+          <span class="resource-value" id="ram-val">--%</span>
+        </div>
+        <div class="progress-wrap">
+          <div class="progress-bar">
+            <div class="progress-fill" id="ram-fill" style="width:0%"></div>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--text-dim);margin-top:4px" id="ram-label"></div>
+      </div>
+
+      <!-- 디스크 -->
+      <div class="resource-card">
+        <div class="resource-header">
+          <span class="resource-label">DISK</span>
+          <span class="resource-value" id="disk-val">--%</span>
+        </div>
+        <div class="progress-wrap">
+          <div class="progress-bar">
+            <div class="progress-fill" id="disk-fill" style="width:0%"></div>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--text-dim);margin-top:4px" id="disk-label"></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── 로그 뷰어 ──────────────────────────────────────── -->
+  <section>
+    <div class="section-title">로그 뷰어</div>
+    <div class="log-card">
+      <div class="log-toolbar">
+        <select id="log-service">
+          <option value="ollama">Ollama</option>
+          <option value="open-webui">Open WebUI</option>
+          <option value="telegram-bot">Telegram Bot</option>
+        </select>
+        <select id="log-lines">
+          <option value="30">30줄</option>
+          <option value="50" selected>50줄</option>
+          <option value="100">100줄</option>
+          <option value="200">200줄</option>
+        </select>
+        <button class="btn" onclick="loadLogs()">새로고침</button>
+      </div>
+      <pre id="log-output">서비스를 선택하고 새로고침을 클릭하세요.</pre>
+    </div>
+  </section>
+
+</main>
+
+<footer>AI System Monitor · Gemma4 + Ollama · RTX 5070</footer>
+
+<script src="/static/dashboard.js"></script>
+<script>
+  // 로그 버튼에서 서비스 선택 후 바로 로드
+  function loadLogsFor(name) {
+    document.getElementById('log-service').value = name;
+    loadLogs();
+    document.querySelector('section:last-of-type').scrollIntoView({ behavior: 'smooth' });
+  }
+
+  // vram-fill 업데이트 패치 (stat-value 용)
+  const _orig = window.updateGPU;
+  // GPU 게이지에서 vram-pct 텍스트도 업데이트
+  const origSetGauge = window.setGauge || function(){};
+</script>
+</body>
+</html>
