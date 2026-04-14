@@ -1,0 +1,4 @@
+python-telegram-bot==22.7
+python-dotenv>=1.0.0
+ollama>=0.4.0
+pyyaml>=6.0

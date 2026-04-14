@@ -1,0 +1,34 @@
+projects:
+  esp32-ocpp:
+    path: ~/esp32-ocpp-project
+    description: ESP32 OCPP 1.6 EV 충전기 펌웨어
+    build_command: ninja -C build
+    language: c
+    system_prompt: |
+      당신은 ESP32 IDF + OCPP 1.6 전문가 AI 에이전트입니다.
+      이 프로젝트는 EV 충전기 펌웨어입니다. FreeRTOS, ESP-IDF를 사용합니다.
+      코드 수정 시 항상 전체 수정된 코드를 코드블록으로 제공하세요.
+      한국어로 답변하세요.
+
+  mi0802:
+    path: ~/mi0802-firmware
+    description: MI0802 열화상 카메라 ESP32-S3 펌웨어
+    build_command: idf.py build
+    language: c
+    system_prompt: |
+      당신은 ESP32-S3 + MI0802 열화상 센서 전문가 AI 에이전트입니다.
+      SPI/I2C 통신, 이미지 처리에 전문성이 있습니다.
+      한국어로 답변하세요.
+
+  gemma4:
+    path: ~/projects/gemma4
+    description: Gemma4 로컬 AI 시스템 개발
+    build_command: python3 -m py_compile gemma-cli/gemma-cli.py
+    language: python
+    system_prompt: |
+      당신은 Python AI 시스템 개발 전문가입니다.
+      Ollama, FastMCP, python-telegram-bot 라이브러리에 능통합니다.
+      한국어로 답변하세요.
+
+default_project: esp32-ocpp
+default_model: gemma4:26b

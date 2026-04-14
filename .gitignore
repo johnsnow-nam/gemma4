@@ -1,1 +1,6 @@
 .aider*
+__pycache__/
+*.pyc
+*.pyo
+.webui_secret_key
+~/.gemma-cli/
