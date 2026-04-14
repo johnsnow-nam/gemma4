@@ -151,3 +151,58 @@ class OllamaClient:
         if hasattr(resp, "message"):
             return resp.message.content or ""
         return resp.get("message", {}).get("content", "")
+
+    # ------------------------------------------------------------------
+    def chat_with_tools(
+        self,
+        messages: list[dict],
+        tools: list[dict],
+        stats: dict | None = None,
+    ) -> tuple[str, list[dict]]:
+        """Tool Calling 비스트리밍 응답.
+        반환: (text_content, tool_calls)
+          - text_content: 텍스트 응답 (도구 호출 없을 때)
+          - tool_calls:   도구 호출 목록 (있으면 비어있지 않음)
+        """
+        resp = self._client.chat(
+            model=self.model,
+            messages=messages,
+            tools=tools,
+            stream=False,
+            options=self._options(),
+        )
+
+        if hasattr(resp, "message"):
+            msg = resp.message
+            text = msg.content or ""
+            raw_calls = msg.tool_calls or []
+        else:
+            msg = resp.get("message", {})
+            text = msg.get("content", "")
+            raw_calls = msg.get("tool_calls", [])
+
+        # tool_calls 정규화
+        tool_calls = []
+        for tc in raw_calls:
+            if hasattr(tc, "function"):
+                fn = tc.function
+                tool_calls.append({
+                    "function": {
+                        "name": fn.name if hasattr(fn, "name") else fn.get("name", ""),
+                        "arguments": (
+                            fn.arguments if hasattr(fn, "arguments") else fn.get("arguments", {})
+                        ),
+                    }
+                })
+            elif isinstance(tc, dict):
+                tool_calls.append(tc)
+
+        if stats is not None and hasattr(resp, "eval_count"):
+            out_tok = resp.eval_count or 0
+            in_tok  = resp.prompt_eval_count or 0
+            eval_ns = resp.eval_duration or 0
+            stats["input_tokens"]  = in_tok
+            stats["output_tokens"] = out_tok
+            stats["tokens_per_sec"] = out_tok / (eval_ns / 1e9) if eval_ns > 0 else 0
+
+        return text, tool_calls

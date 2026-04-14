@@ -26,13 +26,15 @@ class CommandResult:
 
 
 class SlashCommandHandler:
-    def __init__(self, session, ollama_client):
+    def __init__(self, session, ollama_client, mcp_manager=None):
         self.session = session
         self.client = ollama_client
         self._verbose: bool = False
         self._last_response: str = ""  # /copy, /retry용
         self._settings = None
         self._profile: dict | None = None
+        self.mcp = mcp_manager        # MCPManager 인스턴스
+        self.mcp_tools_enabled = True  # Tool Calling 자동 활성화 여부
 
     def _get_settings(self):
         if self._settings is None:
@@ -83,6 +85,7 @@ class SlashCommandHandler:
             "/profile":    self._profile_cmd,
             "/profiles":   self._profiles,
             "/verbose":    self._verbose_cmd,
+            "/mcp":        self._mcp,
         }
 
         handler = dispatch.get(cmd)
@@ -137,6 +140,14 @@ class SlashCommandHandler:
 [yellow]Git[/yellow]
   /diff               git diff를 AI에게 리뷰 요청
   /commit             staged 변경사항 커밋 메시지 생성
+
+[yellow]MCP 도구[/yellow]
+  /mcp                MCP 서버 및 도구 목록
+  /mcp status         서버 연결 상태
+  /mcp <서버>          해당 서버의 도구 목록
+  /mcp <서버> <도구>   도구 직접 실행
+  /mcp reconnect      모든 서버 재연결
+  /mcp tools          Tool Calling 자동 모드 토글
 
 [yellow]기타[/yellow]
   /watch @파일         파일 변경 감지
@@ -557,6 +568,133 @@ class SlashCommandHandler:
             needs_ai=True,
             ai_prompt="이 스크린샷을 분석해줘.",
             extra={"screenshot_path": tmp},
+        )
+
+    # ------------------------------------------------------------------
+    # MCP 관련 명령어
+    # ------------------------------------------------------------------
+    def _mcp(self, args) -> CommandResult:
+        if self.mcp is None:
+            return CommandResult(handled=True, output="[red]MCP 클라이언트가 초기화되지 않았습니다.[/red]")
+
+        # 서브커맨드 없음 or "list" → 전체 목록
+        if not args or args[0] == "list":
+            return self._mcp_list()
+
+        sub = args[0].lower()
+
+        if sub == "status":
+            return CommandResult(handled=True, output=self.mcp.status_text())
+
+        if sub == "reconnect":
+            return self._mcp_reconnect()
+
+        if sub == "tools":
+            return self._mcp_toggle_tools()
+
+        # /mcp <서버명> → 해당 서버 도구 목록
+        if sub in self.mcp.servers:
+            srv_name = sub
+            tool_arg = args[1] if len(args) > 1 else None
+            if tool_arg is None:
+                return self._mcp_server_tools(srv_name)
+            # /mcp <서버> <도구> [key=value ...]
+            raw_args = args[2:]
+            return self._mcp_call(srv_name, tool_arg, raw_args)
+
+        return CommandResult(
+            handled=True,
+            output=(
+                f"[red]알 수 없는 서버: '{sub}'[/red]\n"
+                f"사용 가능한 서버: {', '.join(self.mcp.servers.keys()) or '없음'}"
+            ),
+        )
+
+    def _mcp_list(self) -> CommandResult:
+        servers = self.mcp.servers
+        if not servers:
+            return CommandResult(handled=True, output="[yellow]연결된 MCP 서버가 없습니다. /mcp reconnect 로 재연결하세요.[/yellow]")
+
+        tools_on = "[green]ON[/green]" if self.mcp_tools_enabled else "[dim]OFF[/dim]"
+        lines = [f"[bold cyan]MCP 서버 목록[/bold cyan]  Tool Calling 자동: {tools_on}\n"]
+
+        for srv_name, srv in servers.items():
+            icon = "✅" if srv.connected else "❌"
+            lines.append(f"{icon} [bold]{srv_name}[/bold]  ({len(srv.tools)}개 도구)")
+            for tool in srv.tools:
+                desc = tool.get("description", "")[:60]
+                lines.append(f"   [cyan]• {tool['name']}[/cyan]  [dim]{desc}[/dim]")
+            lines.append("")
+
+        lines.append("[dim]도구 직접 실행: /mcp <서버> <도구명> [인자=값 ...][/dim]")
+        return CommandResult(handled=True, output="\n".join(lines))
+
+    def _mcp_server_tools(self, srv_name: str) -> CommandResult:
+        srv = self.mcp.servers[srv_name]
+        if not srv.tools:
+            return CommandResult(handled=True, output=f"[yellow]{srv_name} 에 도구가 없습니다.[/yellow]")
+
+        lines = [f"[bold]{srv_name}[/bold] 도구 목록:\n"]
+        for tool in srv.tools:
+            name = tool["name"]
+            desc = tool.get("description", "")
+            schema = tool.get("inputSchema", {})
+            props = schema.get("properties", {})
+            required = schema.get("required", [])
+
+            lines.append(f"  [cyan]{name}[/cyan]")
+            if desc:
+                lines.append(f"    {desc}")
+            if props:
+                lines.append("    인자:")
+                for p_name, p_info in props.items():
+                    req = " [red]*필수[/red]" if p_name in required else ""
+                    p_type = p_info.get("type", "any")
+                    p_desc = p_info.get("description", "")
+                    lines.append(f"      {p_name}: {p_type}{req}  [dim]{p_desc}[/dim]")
+            lines.append(f"    [dim]실행: /mcp {srv_name} {name}[/dim]")
+            lines.append("")
+
+        return CommandResult(handled=True, output="\n".join(lines))
+
+    def _mcp_call(self, srv_name: str, tool_name: str, raw_args: list[str]) -> CommandResult:
+        """도구 직접 실행 — key=value 형식 파싱"""
+        arguments: dict = {}
+        for item in raw_args:
+            if "=" in item:
+                k, _, v = item.partition("=")
+                # 타입 자동 변환
+                try:
+                    if v.lower() in {"true", "false"}:
+                        arguments[k] = v.lower() == "true"
+                    elif "." in v:
+                        arguments[k] = float(v)
+                    else:
+                        arguments[k] = int(v)
+                except ValueError:
+                    arguments[k] = v
+            else:
+                arguments[item] = True
+
+        return CommandResult(
+            handled=True,
+            output="",
+            extra={"mcp_call": {"server": srv_name, "tool": tool_name, "args": arguments}},
+        )
+
+    def _mcp_reconnect(self) -> CommandResult:
+        return CommandResult(
+            handled=True,
+            output="[dim]MCP 서버 재연결 중...[/dim]",
+            extra={"mcp_reconnect": True},
+        )
+
+    def _mcp_toggle_tools(self) -> CommandResult:
+        self.mcp_tools_enabled = not self.mcp_tools_enabled
+        state = "[green]ON[/green]" if self.mcp_tools_enabled else "[dim]OFF[/dim]"
+        return CommandResult(
+            handled=True,
+            output=f"[bold]Tool Calling 자동 모드: {state}[/bold]",
         )
 
     # ------------------------------------------------------------------

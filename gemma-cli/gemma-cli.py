@@ -28,6 +28,7 @@ from prompt_toolkit.styles import Style
 
 from core.ollama_client import OllamaClient
 from core.session import Session
+from core.mcp_client import MCPManager
 from core.file_handler import (
     parse_at_references, read_single_file, read_glob_pattern, read_folder,
     extract_code_blocks, write_file_with_backup, get_file_diff_preview,
@@ -57,6 +58,7 @@ SLASH_COMMANDS = [
     "/save", "/load", "/sessions", "/model", "/models", "/set",
     "/profile", "/profiles", "/run", "/watch", "/diff", "/commit",
     "/screenshot", "/ls", "/tokens", "/config", "/verbose", "/exit", "/quit",
+    "/mcp", "/mcp list", "/mcp status", "/mcp reconnect", "/mcp tools",
 ]
 
 # 자동 모델 라우팅 기준
@@ -377,6 +379,79 @@ def stream_response(
             console.print(f"[dim]{traceback.format_exc()}[/dim]")
     finally:
         client.model = orig_model
+
+    return full_response
+
+
+# ---------------------------------------------------------------------------
+# Tool Calling 응답 처리 (Phase A)
+# ---------------------------------------------------------------------------
+
+MAX_TOOL_ROUNDS = 5  # 무한 루프 방지
+
+
+def run_with_tools(
+    session: Session,
+    client: OllamaClient,
+    mcp_manager: MCPManager,
+    verbose: bool = False,
+) -> str:
+    """Tool Calling 루프:
+    1. Gemma 호출 (tools 포함)
+    2. tool_calls 있으면 → MCP 실행 → 결과 추가 → 반복
+    3. 최종 텍스트 응답 반환
+    """
+    tools = mcp_manager.to_ollama_tools()
+    if not tools:
+        # 도구 없으면 일반 스트리밍
+        return stream_response(session, client, [], verbose=verbose)
+
+    full_response = ""
+
+    for round_num in range(MAX_TOOL_ROUNDS):
+        if verbose:
+            console.print(f"[dim]Tool round {round_num + 1}/{MAX_TOOL_ROUNDS}[/dim]")
+
+        try:
+            text, tool_calls = client.chat_with_tools(session.messages, tools)
+        except Exception as e:
+            console.print(f"[red]Tool Calling 오류: {e}[/red]")
+            # fallback: 일반 스트리밍
+            return stream_response(session, client, [], verbose=verbose)
+
+        # 도구 호출이 없으면 최종 응답
+        if not tool_calls:
+            if text:
+                console.print()
+                console.print("[dim cyan]gemma[/dim cyan] ", end="")
+                console.print(text, markup=False)
+                console.print()
+            full_response = text
+            break
+
+        # Gemma의 어시스턴트 메시지(tool_calls 포함) 저장
+        session.messages.append({
+            "role": "assistant",
+            "content": text or "",
+            "tool_calls": tool_calls,
+        })
+
+        # 도구 실행 및 결과 표시
+        for tc in tool_calls:
+            fn = tc.get("function", {})
+            name = fn.get("name", "?")
+            args = fn.get("arguments", {})
+            console.print(f"\n[dim cyan]⚙ MCP 도구 호출:[/dim cyan] [cyan]{name}[/cyan]", end="")
+            if args:
+                console.print(f"  [dim]{args}[/dim]", end="")
+            console.print()
+
+        tool_messages = mcp_manager.execute_tool_calls(tool_calls)
+
+        for msg in tool_messages:
+            result_preview = msg["content"][:200]
+            console.print(f"[dim]  → {result_preview}{'...' if len(msg['content']) > 200 else ''}[/dim]")
+            session.messages.append(msg)
 
     return full_response
 
@@ -770,7 +845,16 @@ def main():
         repeat_penalty=settings.repeat_penalty,
     )
     session = Session(model=model)
-    cmd_handler = SlashCommandHandler(session, client)
+
+    # MCP 클라이언트 초기화
+    mcp_manager = MCPManager()
+    if not dry_run:
+        with console.status("[dim]MCP 서버 연결 중...[/dim]"):
+            connected = mcp_manager.load_and_connect()
+    else:
+        connected = []
+
+    cmd_handler = SlashCommandHandler(session, client, mcp_manager=mcp_manager)
     cmd_handler._verbose = verbose
 
     # 프로파일 로드 (우선순위: --profile > 로컬 .gemma-cli > 없음)
@@ -829,6 +913,11 @@ def main():
         if ollama_ok else
         "\n[red]  ✖ Ollama 연결 실패[/red]"
     )
+    if connected:
+        total_tools = sum(len(mcp_manager.servers[s].tools) for s in connected)
+        mcp_tag = f"\n[green]  ✔ MCP  [dim]{len(connected)}개 서버 · {total_tools}개 도구[/dim][/green]"
+    else:
+        mcp_tag = "\n[dim]  MCP 서버 없음[/dim]"
 
     left = (
         f"\n{WOODPECKER}\n\n"
@@ -840,10 +929,12 @@ def main():
         f"[dim]{'─' * 38}[/dim]\n"
         f"  모델  [cyan]{client.model}[/cyan]"
         f"{ollama_tag}"
+        f"{mcp_tag}"
         f"{profile_tag}"
         f"{dry_tag}{verbose_tag}\n"
         f"[dim]{'─' * 38}[/dim]\n"
         f"[dim]  /help    도움말\n"
+        f"  /mcp     MCP 도구\n"
         f"  @파일    파일 첨부\n"
         f"  !명령어  셸 실행\n"
         f"  Ctrl+D  종료[/dim]"
@@ -962,6 +1053,41 @@ def main():
                                 session.add_assistant(full)
                                 cmd_handler.set_last_response(full)
                                 prompt_save_code_blocks(full)
+                    continue
+
+                # /mcp 재연결
+                if result.extra.get("mcp_reconnect"):
+                    with console.status("[dim]MCP 서버 재연결 중...[/dim]"):
+                        mcp_manager.disconnect_all()
+                        reconnected = mcp_manager.load_and_connect()
+                    cmd_handler.mcp = mcp_manager
+                    if reconnected:
+                        total_tools = sum(len(mcp_manager.servers[s].tools) for s in reconnected)
+                        console.print(f"[green]✔ MCP 재연결: {len(reconnected)}개 서버 · {total_tools}개 도구[/green]")
+                    else:
+                        console.print("[yellow]연결된 서버 없음[/yellow]")
+                    continue
+
+                # /mcp <서버> <도구> 직접 실행
+                if result.extra.get("mcp_call"):
+                    mcp_req = result.extra["mcp_call"]
+                    srv_name = mcp_req["server"]
+                    tool_name = mcp_req["tool"]
+                    tool_args = mcp_req["args"]
+
+                    console.print(f"[dim cyan]⚙ {srv_name} · {tool_name}[/dim cyan]  [dim]{tool_args or ''}[/dim]")
+                    with console.status(f"[dim]{tool_name} 실행 중...[/dim]"):
+                        tool_result = mcp_manager.call_tool(srv_name, tool_name, tool_args)
+
+                    # 결과 출력
+                    console.print(f"\n[dim cyan]gemma[/dim cyan] 도구 실행 결과:\n")
+                    console.print(tool_result)
+                    console.print()
+
+                    # 세션에 추가해서 후속 대화 가능
+                    session.add_user(f"[MCP {srv_name}/{tool_name}] 도구 실행 결과:\n{tool_result}")
+                    session.add_assistant(tool_result)
+                    cmd_handler.set_last_response(tool_result)
                     continue
 
                 # AI 응답이 필요한 명령어 (/diff, /commit, /run, /screenshot)
@@ -1084,12 +1210,21 @@ def main():
 
         session.add_user(full_message)
 
-        # AI 응답 스트리밍
-        full_response = stream_response(
-            session, client, valid_images,
-            override_model=routed_model if routed_model != client.model else None,
-            verbose=verbose,
+        # AI 응답 — Tool Calling 활성 시 MCP 도구 자동 사용 (Phase A)
+        use_tools = (
+            cmd_handler.mcp_tools_enabled
+            and mcp_manager.servers
+            and not valid_images  # 이미지는 tool calling 미지원
         )
+
+        if use_tools:
+            full_response = run_with_tools(session, client, mcp_manager, verbose=verbose)
+        else:
+            full_response = stream_response(
+                session, client, valid_images,
+                override_model=routed_model if routed_model != client.model else None,
+                verbose=verbose,
+            )
 
         if full_response:
             session.add_assistant(full_response)
@@ -1109,6 +1244,9 @@ def main():
             obs.join()  # type: ignore[attr-defined]
         except Exception:
             pass
+
+    # MCP 연결 해제
+    mcp_manager.disconnect_all()
 
 
 if __name__ == "__main__":
