@@ -685,14 +685,16 @@ def main():
     username = getpass.getuser()
 
     WOODPECKER = """\
-[bright_black]       ║[/bright_black]
-[red]  ▄▄[/red]   [bright_black]║[/bright_black]
-[red] ████[/red]  [bright_black]║[/bright_black]
-[red] █[/red][white]◉[/white][red]█[/red][yellow]══►[/yellow][bright_black]║[/bright_black]
-[red] ███[/red]   [bright_black]║[/bright_black]
-[white] ███[/white]   [bright_black]║[/bright_black]
-[white] █[/white][bright_black]█[/bright_black][white]█[/white]   [bright_black]║[/bright_black]
-[white] ▌[/white] [white]▌[/white]  [bright_black]║[/bright_black]"""
+[red]  ╱╲ ╱╲ ╱╲[/red]
+[red]  ████████[/red]
+[red] ██[/red][white]◎[/white][red]█████[/red][yellow]══►[/yellow]
+[red] ███[/red][white]▄████[/white]
+  [white]██████[/white]
+[blue] ▄[/blue][white]██████[/white][blue]▄[/blue]
+[blue]▐█[/blue][white]██████[/white][blue]█▌[/blue]
+[blue] █[/blue][white]████[/white][blue]███[/blue]  [blue]▲[/blue]
+[blue]  ██[/blue] [blue]███[/blue]
+[yellow] ████ ████[/yellow]"""
 
     dry_tag    = "\n[yellow]  ⚠ DRY-RUN 모드[/yellow]" if dry_run else ""
     verbose_tag = "\n[dim]  VERBOSE 모드[/dim]" if verbose else ""
@@ -705,7 +707,7 @@ def main():
 
     left = (
         f"\n{WOODPECKER}\n\n"
-        f"  [bold cyan]Welcome back, {username}![/bold cyan]"
+        f"  [bold cyan]Welcome back, {username}![/bold cyan]\n"
     )
 
     right = (
