@@ -262,14 +262,31 @@ class SlashCommandHandler:
         models = self.client.list_models()
         if not models:
             return CommandResult(handled=True, output="[red]Ollama에서 모델 목록을 가져올 수 없습니다.[/red]")
-        lines = ["[bold]사용 가능한 모델:[/bold]"]
-        for m in models:
+
+        from utils.selector import select
+
+        choices = []
+        default_idx = 0
+        for i, m in enumerate(models):
             name = m.get("name", "?")
-            size = m.get("size", 0)
-            size_gb = size / 1e9
-            marker = " [green]◀ 현재[/green]" if name == self.client.model else ""
-            lines.append(f"  [cyan]{name}[/cyan]  ({size_gb:.1f} GB){marker}")
-        return CommandResult(handled=True, output="\n".join(lines))
+            size_gb = m.get("size", 0) / 1e9
+            marker = " ◀ 현재" if name == self.client.model else ""
+            choices.append((name, f"{name}  ({size_gb:.1f} GB){marker}"))
+            if name == self.client.model:
+                default_idx = i
+
+        selected = select("모델 선택", choices, default=default_idx)
+
+        if selected is None or selected == self.client.model:
+            return CommandResult(handled=True, output="[dim]모델 변경 없음.[/dim]")
+
+        self.client.model = selected
+        self.session.model = selected
+        return CommandResult(
+            handled=True,
+            output=f"[green]모델 전환: [cyan]{selected}[/cyan][/green]",
+            model_changed=selected,
+        )
 
     # ------------------------------------------------------------------
     # M-004 /set
