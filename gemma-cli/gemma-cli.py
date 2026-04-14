@@ -209,6 +209,19 @@ def process_at_references(
 # 스트리밍 응답
 # ---------------------------------------------------------------------------
 
+_THINKING_PHRASES = [
+    "컨텍스트를 파악하는 중",
+    "코드를 분석하는 중",
+    "최적의 답변을 구성하는 중",
+    "관련 패턴을 탐색하는 중",
+    "논리를 검증하는 중",
+    "메모리에서 참조하는 중",
+    "응답을 생성하는 중",
+]
+
+_SPINNER_FRAMES = ["⠋", "⠙", "⠸", "⠴", "⠦", "⠇"]
+
+
 def stream_response(
     session: Session,
     client: OllamaClient,
@@ -216,12 +229,13 @@ def stream_response(
     override_model: str | None = None,
     verbose: bool = False,
 ) -> str:
-    """AI 응답 스트리밍 출력 후 전체 텍스트 반환"""
-    console.print()
-    console.print("[dim cyan]gemma[/dim cyan] ", end="")
+    """AI 응답 스트리밍 — Thinking 애니메이션 후 토큰 출력"""
+    from rich.live import Live
+    from rich.text import Text as RichText
+    from rich.rule import Rule
+    import itertools
 
     full_response = ""
-    active_model = override_model or client.model
     orig_model = client.model
 
     if override_model and override_model != client.model:
@@ -229,20 +243,90 @@ def stream_response(
         if verbose:
             console.print(f"[dim]자동 라우팅 → {override_model}[/dim]")
 
+    console.print()
+
+    spinner_cycle  = itertools.cycle(_SPINNER_FRAMES)
+    phrase_cycle   = itertools.cycle(_THINKING_PHRASES)
+    current_phrase = next(phrase_cycle)
+    phrase_counter = [0]
+
+    def thinking_renderable() -> RichText:
+        spin = next(spinner_cycle)
+        phrase_counter[0] += 1
+        if phrase_counter[0] % 8 == 0:          # 약 0.4초마다 문구 교체
+            current_phrase = next(phrase_cycle)
+            thinking_renderable._phrase = current_phrase
+        phrase = getattr(thinking_renderable, "_phrase", current_phrase)
+        t = RichText()
+        t.append("  ")
+        t.append(spin,    style="bold cyan")
+        t.append("  ",    style="")
+        t.append("gemma", style="dim cyan")
+        t.append("  ",    style="")
+        t.append(phrase,  style="dim")
+        t.append(" ...",  style="dim")
+        return t
+
+    thinking_renderable._phrase = current_phrase
+
     try:
         if verbose:
-            console.print(f"\n[dim]요청: model={client.model}, msgs={len(session.messages)}, images={len(image_paths)}[/dim]")
+            console.print(f"[dim]요청: model={client.model}, msgs={len(session.messages)}, images={len(image_paths)}[/dim]")
 
         if image_paths:
             stream = client.chat_stream_with_images(session.messages, image_paths)
         else:
             stream = client.chat_stream(session.messages)
 
-        for token in stream:
-            console.print(token, end="", markup=False)
-            full_response += token
+        # ── Phase 1: 첫 토큰 대기 중 Thinking 애니메이션 ─────────────
+        import queue, threading
+
+        token_q: queue.Queue = queue.Queue()
+
+        def _fetch():
+            try:
+                for tok in stream:
+                    token_q.put(tok)
+            finally:
+                token_q.put(None)   # sentinel
+
+        fetch_thread = threading.Thread(target=_fetch, daemon=True)
+        fetch_thread.start()
+
+        first_token = None
+
+        with Live(
+            thinking_renderable(),
+            console=console,
+            refresh_per_second=20,
+            transient=True,
+        ) as live:
+            while True:
+                live.update(thinking_renderable())
+                try:
+                    tok = token_q.get(timeout=0.05)
+                    if tok is not None:
+                        first_token = tok
+                    break
+                except queue.Empty:
+                    continue
+
+        # ── Phase 2: 토큰 스트리밍 출력 ──────────────────────────────
+        console.print("[dim cyan]gemma[/dim cyan] ", end="")
+
+        if first_token:
+            console.print(first_token, end="", markup=False)
+            full_response += first_token
+
+        while True:
+            tok = token_q.get()
+            if tok is None:
+                break
+            console.print(tok, end="", markup=False)
+            full_response += tok
 
         console.print()
+
     except KeyboardInterrupt:
         console.print("\n[yellow]⚠ 생성 중단됨[/yellow]")
     except Exception as e:
