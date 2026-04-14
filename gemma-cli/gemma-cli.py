@@ -222,6 +222,15 @@ _THINKING_PHRASES = [
 _SPINNER_FRAMES = ["⠋", "⠙", "⠸", "⠴", "⠦", "⠇"]
 
 
+def _fmt_elapsed(seconds: float) -> str:
+    """경과 시간을 '1m 15s' 또는 '3.2s' 형식으로 변환"""
+    if seconds >= 60:
+        m = int(seconds // 60)
+        s = int(seconds % 60)
+        return f"{m}m {s}s"
+    return f"{seconds:.1f}s"
+
+
 def stream_response(
     session: Session,
     client: OllamaClient,
@@ -229,14 +238,17 @@ def stream_response(
     override_model: str | None = None,
     verbose: bool = False,
 ) -> str:
-    """AI 응답 스트리밍 — Thinking 애니메이션 후 토큰 출력"""
+    """AI 응답 스트리밍 — Thinking 애니메이션 + 경과 시간 표시"""
     from rich.live import Live
     from rich.text import Text as RichText
-    from rich.rule import Rule
     import itertools
+    import queue
+    import threading
+    import time
 
     full_response = ""
-    orig_model = client.model
+    orig_model    = client.model
+    t_start       = time.monotonic()
 
     if override_model and override_model != client.model:
         client.model = override_model
@@ -245,29 +257,28 @@ def stream_response(
 
     console.print()
 
+    # ── Thinking 애니메이션 렌더러 ─────────────────────────────────────
     spinner_cycle  = itertools.cycle(_SPINNER_FRAMES)
     phrase_cycle   = itertools.cycle(_THINKING_PHRASES)
-    current_phrase = next(phrase_cycle)
     phrase_counter = [0]
+    thinking_renderable._phrase = next(phrase_cycle)   # type: ignore[attr-defined]
 
     def thinking_renderable() -> RichText:
-        spin = next(spinner_cycle)
         phrase_counter[0] += 1
-        if phrase_counter[0] % 8 == 0:          # 약 0.4초마다 문구 교체
-            current_phrase = next(phrase_cycle)
-            thinking_renderable._phrase = current_phrase
-        phrase = getattr(thinking_renderable, "_phrase", current_phrase)
+        if phrase_counter[0] % 8 == 0:
+            thinking_renderable._phrase = next(phrase_cycle)
+        elapsed = time.monotonic() - t_start
         t = RichText()
         t.append("  ")
-        t.append(spin,    style="bold cyan")
-        t.append("  ",    style="")
-        t.append("gemma", style="dim cyan")
-        t.append("  ",    style="")
-        t.append(phrase,  style="dim")
-        t.append(" ...",  style="dim")
+        t.append(next(spinner_cycle), style="bold cyan")
+        t.append("  gemma  ",         style="dim cyan")
+        t.append(thinking_renderable._phrase, style="dim")
+        t.append(" ...",              style="dim")
+        t.append(f"  [{_fmt_elapsed(elapsed)}]", style="dim bright_black")
         return t
 
-    thinking_renderable._phrase = current_phrase
+    thinking_renderable._phrase = next(itertools.islice(
+        itertools.cycle(_THINKING_PHRASES), 0, 1))
 
     try:
         if verbose:
@@ -279,8 +290,6 @@ def stream_response(
             stream = client.chat_stream(session.messages)
 
         # ── Phase 1: 첫 토큰 대기 중 Thinking 애니메이션 ─────────────
-        import queue, threading
-
         token_q: queue.Queue = queue.Queue()
 
         def _fetch():
@@ -288,13 +297,11 @@ def stream_response(
                 for tok in stream:
                     token_q.put(tok)
             finally:
-                token_q.put(None)   # sentinel
+                token_q.put(None)
 
-        fetch_thread = threading.Thread(target=_fetch, daemon=True)
-        fetch_thread.start()
+        threading.Thread(target=_fetch, daemon=True).start()
 
         first_token = None
-
         with Live(
             thinking_renderable(),
             console=console,
@@ -310,6 +317,8 @@ def stream_response(
                     break
                 except queue.Empty:
                     continue
+
+        t_first = time.monotonic()   # 첫 토큰 도착 시각
 
         # ── Phase 2: 토큰 스트리밍 출력 ──────────────────────────────
         console.print("[dim cyan]gemma[/dim cyan] ", end="")
@@ -327,8 +336,27 @@ def stream_response(
 
         console.print()
 
+        # ── ✻ Cooked for X ────────────────────────────────────────────
+        t_end        = time.monotonic()
+        total_elapsed = t_end - t_start
+        wait_elapsed  = t_first - t_start
+        gen_elapsed   = t_end - t_first
+        token_count   = len(full_response.split())
+
+        cooked = RichText()
+        cooked.append("  ✻ ", style="dim cyan")
+        cooked.append("Cooked for ", style="dim")
+        cooked.append(_fmt_elapsed(total_elapsed), style="dim bold")
+        if verbose:
+            cooked.append(
+                f"  (대기 {_fmt_elapsed(wait_elapsed)} · 생성 {_fmt_elapsed(gen_elapsed)} · ~{token_count} 단어)",
+                style="dim bright_black",
+            )
+        console.print(cooked)
+
     except KeyboardInterrupt:
-        console.print("\n[yellow]⚠ 생성 중단됨[/yellow]")
+        t_end = time.monotonic()
+        console.print(f"\n[yellow]⚠ 생성 중단됨[/yellow]  [dim]({_fmt_elapsed(t_end - t_start)})[/dim]")
     except Exception as e:
         console.print(f"\n[red]오류: {e}[/red]")
         if verbose:
