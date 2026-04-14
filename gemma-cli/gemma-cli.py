@@ -670,23 +670,71 @@ def main():
         multiline=False,
     )
 
-    # 시작 배너
-    dry_tag = "  [yellow][DRY-RUN][/yellow]" if dry_run else ""
-    verbose_tag = "  [dim][VERBOSE][/dim]" if verbose else ""
-    console.print(Panel.fit(
-        f"[bold cyan]gemma-cli[/bold cyan]  [dim]로컬 AI CLI — {client.model}[/dim]{dry_tag}{verbose_tag}\n"
-        "[dim]/help 도움말 | @파일 파일읽기 | !명령어 셸실행 | Ctrl+C 중단[/dim]",
-        border_style="cyan",
-    ))
-
-    # Ollama 연결 확인
+    # ── Ollama 연결 확인 (배너 전에 수행) ──────────────────────────────
     if not dry_run:
         with console.status("[dim]Ollama 연결 확인 중...[/dim]"):
             models = client.list_models()
-        if not models:
-            console.print("[red]⚠ Ollama에 연결할 수 없습니다. `ollama serve`가 실행 중인지 확인하세요.[/red]")
-        else:
-            console.print(f"[dim green]✔ Ollama 연결됨 ({len(models)}개 모델)[/dim green]")
+        ollama_ok = bool(models)
+        model_count = len(models)
+    else:
+        ollama_ok = True
+        model_count = 0
+
+    # ── 시작 배너 (Claude Code 스타일) ────────────────────────────────
+    import getpass
+    username = getpass.getuser()
+
+    PENGUIN = """\
+[bright_white]   [cyan]▄███▄[/cyan]
+  [cyan]█[/cyan][bright_white]▀   ▀[/bright_white][cyan]█[/cyan]
+  [cyan]█[/cyan] [yellow]◉[/yellow] [yellow]◉[/yellow] [cyan]█[/cyan]
+  [cyan]█[/cyan]  [bright_yellow]▲[/bright_yellow]  [cyan]█[/cyan]
+  [cyan]█[/cyan][bright_white]▄▄▄▄▄[/bright_white][cyan]█[/cyan]
+ [bright_white]▄[/bright_white][cyan]█████████[/cyan][bright_white]▄[/bright_white]
+ [bright_white]█[/bright_white][cyan]█[/cyan][bright_white]███████[/bright_white][cyan]█[/cyan][bright_white]█[/bright_white]
+  [bright_black]▀▀[/bright_black][cyan]█████[/cyan][bright_black]▀▀[/bright_black][/bright_white]"""
+
+    dry_tag    = "\n[yellow]  ⚠ DRY-RUN 모드[/yellow]" if dry_run else ""
+    verbose_tag = "\n[dim]  VERBOSE 모드[/dim]" if verbose else ""
+    profile_tag = f"\n[dim]  프로파일: [cyan]{active_profile_name}[/cyan][/dim]" if active_profile_name else ""
+    ollama_tag  = (
+        f"\n[green]  ✔ Ollama  [dim]{model_count}개 모델[/dim][/green]"
+        if ollama_ok else
+        "\n[red]  ✖ Ollama 연결 실패[/red]"
+    )
+
+    left = (
+        f"\n{PENGUIN}\n\n"
+        f"  [bold cyan]Welcome back, {username}![/bold cyan]"
+    )
+
+    right = (
+        f"[bold]gemma-cli[/bold]  [dim]v1.0  로컬 AI CLI[/dim]\n"
+        f"[dim]{'─' * 38}[/dim]\n"
+        f"  모델  [cyan]{client.model}[/cyan]"
+        f"{ollama_tag}"
+        f"{profile_tag}"
+        f"{dry_tag}{verbose_tag}\n"
+        f"[dim]{'─' * 38}[/dim]\n"
+        f"[dim]  /help    도움말\n"
+        f"  @파일    파일 첨부\n"
+        f"  !명령어  셸 실행\n"
+        f"  Ctrl+D  종료[/dim]"
+    )
+
+    from rich.columns import Columns
+    from rich.padding import Padding
+
+    console.print(Panel(
+        Columns(
+            [Padding(left, (0, 2)), Padding(right, (1, 2))],
+            equal=False,
+            expand=True,
+        ),
+        border_style="cyan",
+        padding=(0, 1),
+    ))
+    console.print()
 
     # G-001: Git 상태
     show_git_status_on_start()
