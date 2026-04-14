@@ -684,15 +684,15 @@ def main():
     import getpass
     username = getpass.getuser()
 
-    PENGUIN = """\
-[bright_white]   [cyan]▄███▄[/cyan]
-  [cyan]█[/cyan][bright_white]▀   ▀[/bright_white][cyan]█[/cyan]
-  [cyan]█[/cyan] [yellow]◉[/yellow] [yellow]◉[/yellow] [cyan]█[/cyan]
-  [cyan]█[/cyan]  [bright_yellow]▲[/bright_yellow]  [cyan]█[/cyan]
-  [cyan]█[/cyan][bright_white]▄▄▄▄▄[/bright_white][cyan]█[/cyan]
- [bright_white]▄[/bright_white][cyan]█████████[/cyan][bright_white]▄[/bright_white]
- [bright_white]█[/bright_white][cyan]█[/cyan][bright_white]███████[/bright_white][cyan]█[/cyan][bright_white]█[/bright_white]
-  [bright_black]▀▀[/bright_black][cyan]█████[/cyan][bright_black]▀▀[/bright_black][/bright_white]"""
+    WOODPECKER = """\
+[bright_black]       ║[/bright_black]
+[red]  ▄▄[/red]   [bright_black]║[/bright_black]
+[red] ████[/red]  [bright_black]║[/bright_black]
+[red] █[/red][white]◉[/white][red]█[/red][yellow]══►[/yellow][bright_black]║[/bright_black]
+[red] ███[/red]   [bright_black]║[/bright_black]
+[white] ███[/white]   [bright_black]║[/bright_black]
+[white] █[/white][bright_black]█[/bright_black][white]█[/white]   [bright_black]║[/bright_black]
+[white] ▌[/white] [white]▌[/white]  [bright_black]║[/bright_black]"""
 
     dry_tag    = "\n[yellow]  ⚠ DRY-RUN 모드[/yellow]" if dry_run else ""
     verbose_tag = "\n[dim]  VERBOSE 모드[/dim]" if verbose else ""
@@ -704,7 +704,7 @@ def main():
     )
 
     left = (
-        f"\n{PENGUIN}\n\n"
+        f"\n{WOODPECKER}\n\n"
         f"  [bold cyan]Welcome back, {username}![/bold cyan]"
     )
 
