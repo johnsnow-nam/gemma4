@@ -85,7 +85,8 @@ class AgentBrain:
         """Ollama 연결 상태 확인"""
         try:
             resp = _client.list()
-            models = [m.get("name", "?") for m in resp.get("models", [])]
+            raw = resp.models if hasattr(resp, "models") else resp.get("models", [])
+            models = [m.model if hasattr(m, "model") else m.get("name", "?") for m in raw]
             return {"ok": True, "models": models}
         except Exception as e:
             return {"ok": False, "error": str(e)}

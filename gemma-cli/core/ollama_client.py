@@ -28,14 +28,22 @@ class OllamaClient:
 
     # ------------------------------------------------------------------
     def list_models(self) -> list[dict]:
+        """모델 목록 반환 — {name, size} dict 리스트"""
         try:
             resp = self._client.list()
-            return resp.get("models", [])
+            models = resp.models if hasattr(resp, "models") else resp.get("models", [])
+            result = []
+            for m in models:
+                if hasattr(m, "model"):          # ollama >= 0.4 객체 방식
+                    result.append({"name": m.model, "size": m.size or 0})
+                else:                            # dict 방식 (구버전 호환)
+                    result.append({"name": m.get("name", "?"), "size": m.get("size", 0)})
+            return result
         except Exception:
             return []
 
     def is_model_available(self, model: str) -> bool:
-        return any(m.get("name", "").startswith(model) for m in self.list_models())
+        return any(m["name"].startswith(model) for m in self.list_models())
 
     # ------------------------------------------------------------------
     def _options(self, temperature: float | None = None, num_ctx: int | None = None) -> dict:
@@ -60,7 +68,10 @@ class OllamaClient:
             options=self._options(temperature, num_ctx),
         )
         for chunk in stream:
-            token = chunk.get("message", {}).get("content", "")
+            if hasattr(chunk, "message"):
+                token = chunk.message.content or ""
+            else:
+                token = chunk.get("message", {}).get("content", "")
             if token:
                 yield token
 
@@ -93,7 +104,10 @@ class OllamaClient:
             options=self._options(temperature, num_ctx),
         )
         for chunk in stream:
-            token = chunk.get("message", {}).get("content", "")
+            if hasattr(chunk, "message"):
+                token = chunk.message.content or ""
+            else:
+                token = chunk.get("message", {}).get("content", "")
             if token:
                 yield token
 
@@ -105,4 +119,6 @@ class OllamaClient:
             stream=False,
             options=self._options(),
         )
+        if hasattr(resp, "message"):
+            return resp.message.content or ""
         return resp.get("message", {}).get("content", "")
