@@ -59,8 +59,12 @@ class OllamaClient:
         messages: list[dict],
         temperature: float | None = None,
         num_ctx: int | None = None,
+        stats: dict | None = None,
     ) -> Iterator[str]:
-        """스트리밍 채팅 — 토큰 단위 yield"""
+        """스트리밍 채팅 — 토큰 단위 yield.
+        stats 딕셔너리가 전달되면 완료 시 아래 키를 채워줌:
+          input_tokens, output_tokens, tokens_per_sec
+        """
         stream = self._client.chat(
             model=self.model,
             messages=messages,
@@ -74,6 +78,22 @@ class OllamaClient:
                 token = chunk.get("message", {}).get("content", "")
             if token:
                 yield token
+            # 마지막 청크(done=True)에서 통계 수집
+            if stats is not None:
+                done = chunk.done if hasattr(chunk, "done") else chunk.get("done", False)
+                if done:
+                    if hasattr(chunk, "eval_count"):
+                        out_tok  = chunk.eval_count or 0
+                        in_tok   = chunk.prompt_eval_count or 0
+                        eval_ns  = chunk.eval_duration or 0
+                    else:
+                        out_tok  = chunk.get("eval_count", 0)
+                        in_tok   = chunk.get("prompt_eval_count", 0)
+                        eval_ns  = chunk.get("eval_duration", 0)
+                    tps = out_tok / (eval_ns / 1e9) if eval_ns > 0 else 0
+                    stats["input_tokens"]  = in_tok
+                    stats["output_tokens"] = out_tok
+                    stats["tokens_per_sec"] = tps
 
     # ------------------------------------------------------------------
     @staticmethod
@@ -110,6 +130,15 @@ class OllamaClient:
                 token = chunk.get("message", {}).get("content", "")
             if token:
                 yield token
+            if stats is not None:
+                done = chunk.done if hasattr(chunk, "done") else chunk.get("done", False)
+                if done:
+                    out_tok = chunk.eval_count if hasattr(chunk, "eval_count") else chunk.get("eval_count", 0)
+                    in_tok  = chunk.prompt_eval_count if hasattr(chunk, "prompt_eval_count") else chunk.get("prompt_eval_count", 0)
+                    eval_ns = chunk.eval_duration if hasattr(chunk, "eval_duration") else chunk.get("eval_duration", 0)
+                    stats["input_tokens"]   = in_tok or 0
+                    stats["output_tokens"]  = out_tok or 0
+                    stats["tokens_per_sec"] = (out_tok / (eval_ns / 1e9)) if eval_ns else 0
 
     def chat_once(self, messages: list[dict]) -> str:
         """비스트리밍 단일 응답 (요약 등 내부 사용)"""

@@ -284,10 +284,11 @@ def stream_response(
         if verbose:
             console.print(f"[dim]요청: model={client.model}, msgs={len(session.messages)}, images={len(image_paths)}[/dim]")
 
+        stats: dict = {}
         if image_paths:
             stream = client.chat_stream_with_images(session.messages, image_paths)
         else:
-            stream = client.chat_stream(session.messages)
+            stream = client.chat_stream(session.messages, stats=stats)
 
         # ── Phase 1: 첫 토큰 대기 중 Thinking 애니메이션 ─────────────
         token_q: queue.Queue = queue.Queue()
@@ -336,22 +337,36 @@ def stream_response(
 
         console.print()
 
-        # ── ✻ Cooked for X ────────────────────────────────────────────
-        t_end        = time.monotonic()
+        # ── ✻ Cooked for · tokens · tok/s ───────────────────────────
+        t_end         = time.monotonic()
         total_elapsed = t_end - t_start
         wait_elapsed  = t_first - t_start
-        gen_elapsed   = t_end - t_first
-        token_count   = len(full_response.split())
+
+        out_tok = stats.get("output_tokens", 0)
+        in_tok  = stats.get("input_tokens",  0)
+        tps     = stats.get("tokens_per_sec", 0)
 
         cooked = RichText()
-        cooked.append("  ✻ ", style="dim cyan")
+        cooked.append("\n  ✻ ", style="dim cyan")
         cooked.append("Cooked for ", style="dim")
         cooked.append(_fmt_elapsed(total_elapsed), style="dim bold")
+
+        if out_tok:
+            cooked.append("  ·  ", style="dim bright_black")
+            cooked.append(f"{in_tok:,}", style="dim")
+            cooked.append(" → ", style="dim bright_black")
+            cooked.append(f"{out_tok:,} tokens", style="dim bold")
+
+        if tps:
+            cooked.append("  ·  ", style="dim bright_black")
+            cooked.append(f"{tps:.0f} tok/s", style="dim")
+
         if verbose:
             cooked.append(
-                f"  (대기 {_fmt_elapsed(wait_elapsed)} · 생성 {_fmt_elapsed(gen_elapsed)} · ~{token_count} 단어)",
+                f"  ·  대기 {_fmt_elapsed(wait_elapsed)}",
                 style="dim bright_black",
             )
+
         console.print(cooked)
 
     except KeyboardInterrupt:
