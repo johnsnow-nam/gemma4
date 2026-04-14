@@ -261,7 +261,6 @@ def stream_response(
     spinner_cycle  = itertools.cycle(_SPINNER_FRAMES)
     phrase_cycle   = itertools.cycle(_THINKING_PHRASES)
     phrase_counter = [0]
-    thinking_renderable._phrase = next(phrase_cycle)   # type: ignore[attr-defined]
 
     def thinking_renderable() -> RichText:
         phrase_counter[0] += 1
@@ -277,8 +276,7 @@ def stream_response(
         t.append(f"  [{_fmt_elapsed(elapsed)}]", style="dim bright_black")
         return t
 
-    thinking_renderable._phrase = next(itertools.islice(
-        itertools.cycle(_THINKING_PHRASES), 0, 1))
+    thinking_renderable._phrase = next(phrase_cycle)  # 함수 정의 후 초기화
 
     try:
         if verbose:
