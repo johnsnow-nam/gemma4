@@ -40,6 +40,7 @@ from config.profiles import detect_local_profile, get_profile, create_profile
 from core.git_handler import (
     is_git_repo, get_branch, get_status_summary, git_commit, get_vram_info,
 )
+from utils.selector import select, confirm
 
 console = Console()
 
@@ -260,7 +261,7 @@ def stream_response(
 # ---------------------------------------------------------------------------
 
 def prompt_save_code_blocks(response: str) -> None:
-    """AI 응답에 코드블록이 있으면 저장 여부 질문"""
+    """AI 응답에 코드블록이 있으면 저장 여부 질문 (인라인 선택 UI)"""
     blocks = extract_code_blocks(response)
     if not blocks:
         return
@@ -275,28 +276,38 @@ def prompt_save_code_blocks(response: str) -> None:
         lines = code.count("\n") + 1
 
         console.print(f"\n[bold][{i}/{len(blocks)}] {lang} 코드 ({lines}줄)[/bold]")
+        console.print(f"[dim]제안 파일명: [cyan]{suggested}[/cyan][/dim]")
 
         try:
-            answer = console.input(
-                f"  [cyan]'{suggested}'[/cyan]에 저장할까요? [이름 입력 또는 y/N] "
-            ).strip()
+            action = select(
+                f"어떻게 할까요?",
+                [
+                    ("save",   f"저장  →  {suggested}"),
+                    ("rename", "다른 이름으로 저장"),
+                    ("skip",   "건너뜀"),
+                ],
+            )
         except (EOFError, KeyboardInterrupt):
             break
 
-        if not answer or answer.lower() == "n":
+        if action is None or action == "skip":
             continue
 
         # 파일명 결정
-        if answer.lower() == "y":
-            filename = suggested
+        if action == "rename":
+            try:
+                filename = console.input("  파일명: ").strip()
+                if not filename:
+                    continue
+            except (EOFError, KeyboardInterrupt):
+                continue
         else:
-            filename = answer  # 사용자가 직접 입력한 이름
+            filename = suggested
 
         # diff 미리보기
         diff_preview = get_file_diff_preview(filename, code)
         if diff_preview and diff_preview != f"[새 파일] {filename}":
             console.print("[dim]--- 변경 내용 미리보기 ---[/dim]")
-            # 처음 20줄만 표시
             preview_lines = diff_preview.splitlines()[:20]
             for line in preview_lines:
                 if line.startswith("+"):
@@ -317,11 +328,8 @@ def prompt_save_code_blocks(response: str) -> None:
 
             # git add 여부
             if is_git_repo():
-                try:
-                    git_ans = console.input("  git add할까요? [y/N] ").strip().lower()
-                except (EOFError, KeyboardInterrupt):
-                    git_ans = "n"
-                if git_ans == "y":
+                git_action = select("git add 할까요?", [("yes", "Yes"), ("no", "No")], default=0)
+                if git_action == "yes":
                     from core.git_handler import git_add
                     success, err = git_add(filename)
                     if success:
@@ -337,7 +345,7 @@ def prompt_save_code_blocks(response: str) -> None:
 # ---------------------------------------------------------------------------
 
 def prompt_run_code_blocks(response: str) -> None:
-    """AI 응답 코드블록을 실행할지 질문"""
+    """AI 응답 코드블록을 실행할지 질문 (인라인 선택 UI)"""
     blocks = extract_code_blocks(response)
     runnable = [b for b in blocks if is_runnable_lang(b["lang"])]
 
@@ -345,18 +353,21 @@ def prompt_run_code_blocks(response: str) -> None:
         return
 
     console.print()
-    for i, block in enumerate(runnable, 1):
+    for block in runnable:
         lang = block["lang"]
         code = block["code"]
         lines = code.count("\n") + 1
 
         console.print(f"[bold][실행가능] {lang} 코드 ({lines}줄)[/bold]")
         try:
-            answer = console.input("  실행할까요? [y/N] ").strip().lower()
+            action = select(
+                "이 코드를 실행할까요?",
+                [("run", "실행"), ("skip", "건너뜀")],
+            )
         except (EOFError, KeyboardInterrupt):
             break
 
-        if answer != "y":
+        if action != "run":
             continue
 
         console.print(f"[dim]실행 중...[/dim]")
@@ -381,11 +392,12 @@ def handle_shell_command(cmd: str, verbose: bool = False) -> str:
 
     if is_dangerous(cmd):
         console.print(f"[red bold]⚠ 위험한 명령어: {cmd}[/red bold]")
-        try:
-            confirm = console.input("정말 실행할까요? [y/N] ").strip().lower()
-        except (EOFError, KeyboardInterrupt):
-            confirm = "n"
-        if confirm != "y":
+        action = select(
+            "정말 실행할까요?",
+            [("no", "취소 (안전)"), ("yes", "실행")],
+            default=0,
+        )
+        if action != "yes":
             return ""
 
     if verbose:
@@ -723,8 +735,16 @@ def main():
                 style=PROMPT_STYLE,
             ).strip()
         except (KeyboardInterrupt, EOFError):
-            console.print("\n[yellow]종료합니다.[/yellow]")
-            break
+            console.print()
+            action = select(
+                "gemma-cli를 종료할까요?",
+                [("quit", "종료"), ("continue", "계속 사용")],
+                default=0,
+            )
+            if action == "quit" or action is None:
+                console.print("[yellow]종료합니다.[/yellow]")
+                break
+            continue
 
         if not user_input:
             continue
