@@ -12,3 +12,7 @@ venv/
 # 환경변수
 .env
 !.env.example
+
+# 레퍼런스 (libs/examples는 Claude 컨텍스트 제외)
+refs/libs/
+refs/examples/

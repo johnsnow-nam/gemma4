@@ -1,13 +1,2 @@
-daily/
-weekly/
-monthly/
-*.log
-node_modules/
-build/
-dist/
-__pycache__/
-.venv/
-venv/
-*.pyc
-.aider*
-scripts/.webui_secret_key
+refs/libs/
+refs/examples/
