@@ -11,16 +11,16 @@ from rich.panel import Panel
 console = Console()
 
 _WOODPECKER = """\
-[red]  ╱╲ ╱╲ ╱╲[/red]
+[red]   ╱╲╱╲╱╲[/red]
 [red]  ████████[/red]
-[red] ██[/red][white]◎[/white][red]█████[/red][yellow]══►[/yellow]
-[red] ███[/red][white]▄████[/white]
-  [white]██████[/white]
-[blue] ▄[/blue][white]██████[/white][blue]▄[/blue]
-[blue]▐█[/blue][white]██████[/white][blue]█▌[/blue]
-[blue] █[/blue][white]████[/white][blue]███[/blue]  [blue]▲[/blue]
-[blue]  ██[/blue] [blue]███[/blue]
-[yellow] ████ ████[/yellow]"""
+[red]  █████[/red][bright_white]◉[/bright_white][red]██[/red][yellow]══►[/yellow]
+[red]  ████████[/red]
+  [white]████████[/white]
+ [blue]▄[/blue][white]████████[/white][blue]▄[/blue]
+[blue]▐█[/blue][white]████████[/white][blue]█▌[/blue]
+[blue]▐█[/blue][white]████████[/white][blue]█▌[/blue]
+    [dim]██  ██[/dim]
+  [yellow]████  ████[/yellow]"""
 
 
 def show_banner(
