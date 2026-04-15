@@ -28,6 +28,6 @@ status: active
 - 2026-04-14: gemma-cli / gemma-desktop-mcp / telegram-agent 전체 구현 완료
 
 ## 다음 할 일
-- [ ] telegram-agent 실기기 연결 테스트
-- [ ] gemma-cli esp32-ocpp 프로젝트 실사용 검증
-- [ ] Claude Desktop MCP 연결 검증
+- [x] telegram-agent 실기기 연결 테스트
+- [x] gemma-cli esp32-ocpp 프로젝트 실사용 검증
+- [x] Claude Desktop MCP 연결 검증
