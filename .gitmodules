@@ -1,0 +1,3 @@
+[submodule "buddy-mcp"]
+	path = buddy-mcp
+	url = https://github.com/johnsnow-nam/buddy-mcp.git
