@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gemma AI 설치 가이드</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #0d1117;
+      color: #e6edf3;
+      min-height: 100vh;
+    }
+    header {
+      text-align: center;
+      padding: 60px 20px 40px;
+      background: linear-gradient(135deg, #1a1f2e, #0d1117);
+      border-bottom: 1px solid #21262d;
+    }
+    header h1 { font-size: 2.8rem; color: #58a6ff; margin-bottom: 12px; }
+    header p  { font-size: 1.15rem; color: #8b949e; max-width: 500px; margin: 0 auto; }
+    .badge {
+      display: inline-block;
+      background: #238636;
+      color: #fff;
+      font-size: 0.8rem;
+      padding: 4px 12px;
+      border-radius: 20px;
+      margin-top: 16px;
+    }
+
+    main { max-width: 760px; margin: 0 auto; padding: 40px 20px 80px; }
+
+    .step {
+      background: #161b22;
+      border: 1px solid #21262d;
+      border-radius: 12px;
+      padding: 28px 32px;
+      margin-bottom: 24px;
+      position: relative;
+    }
+    .step-num {
+      position: absolute;
+      top: -16px;
+      left: 24px;
+      background: #58a6ff;
+      color: #0d1117;
+      font-weight: 700;
+      font-size: 0.85rem;
+      padding: 4px 14px;
+      border-radius: 20px;
+    }
+    .step h2 { font-size: 1.25rem; margin-bottom: 8px; color: #e6edf3; }
+    .step p  { color: #8b949e; line-height: 1.7; margin-bottom: 16px; }
+
+    .btn {
+      display: inline-block;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      text-decoration: none;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn-blue  { background: #1f6feb; color: #fff; border: none; }
+    .btn-green { background: #238636; color: #fff; border: none; }
+
+    .code-block {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 16px 20px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.95rem;
+      color: #79c0ff;
+      position: relative;
+      margin-top: 12px;
+    }
+    .copy-btn {
+      position: absolute;
+      top: 10px; right: 12px;
+      background: #21262d;
+      color: #8b949e;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 0.75rem;
+      cursor: pointer;
+    }
+    .copy-btn:hover { background: #30363d; color: #e6edf3; }
+
+    .os-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+    .os-tab {
+      padding: 6px 18px;
+      border-radius: 6px;
+      border: 1px solid #30363d;
+      background: #21262d;
+      color: #8b949e;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+    .os-tab.active { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+
+    .os-content { display: none; }
+    .os-content.active { display: block; }
+
+    .tip {
+      background: #112d45;
+      border-left: 3px solid #58a6ff;
+      padding: 12px 16px;
+      border-radius: 0 8px 8px 0;
+      margin-top: 12px;
+      font-size: 0.9rem;
+      color: #8b949e;
+    }
+
+    footer {
+      text-align: center;
+      padding: 32px;
+      border-top: 1px solid #21262d;
+      color: #484f58;
+      font-size: 0.85rem;
+    }
+    footer a { color: #58a6ff; text-decoration: none; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🤖 Gemma AI</h1>
+  <p>무료 AI를 내 컴퓨터에서 사용해보세요</p>
+  <span class="badge">완전 무료 · 인터넷 없이도 동작</span>
+</header>
+
+<main>
+
+  <!-- Step 1: Ollama -->
+  <div class="step">
+    <span class="step-num">Step 1</span>
+    <h2>Ollama 설치</h2>
+    <p>AI 엔진인 Ollama를 설치합니다. 아래 버튼을 눌러 공식 홈페이지에서 내 운영체제에 맞는 파일을 받으세요.</p>
+    <a class="btn btn-blue" href="https://ollama.com/download" target="_blank">Ollama 다운로드 →</a>
+    <div class="tip">💡 Windows라면 <strong>OllamaSetup.exe</strong>, Mac이라면 <strong>Ollama-darwin.zip</strong> 을 받으세요.</div>
+  </div>
+
+  <!-- Step 2: Git -->
+  <div class="step">
+    <span class="step-num">Step 2</span>
+    <h2>Git 설치</h2>
+    <p>소스코드를 내려받기 위해 Git이 필요합니다.</p>
+    <a class="btn btn-blue" href="https://git-scm.com/downloads" target="_blank">Git 다운로드 →</a>
+    <div class="tip">💡 설치 중 옵션은 전부 기본값(Next)으로 진행하면 됩니다.</div>
+  </div>
+
+  <!-- Step 3: gemma4 설치 -->
+  <div class="step">
+    <span class="step-num">Step 3</span>
+    <h2>Gemma AI 설치</h2>
+    <p>터미널(명령 프롬프트)을 열고 아래 명령어를 복사해서 붙여넣으세요.</p>
+
+    <div class="os-tabs">
+      <button class="os-tab active" onclick="switchOS('win')">Windows</button>
+      <button class="os-tab" onclick="switchOS('mac')">Mac</button>
+      <button class="os-tab" onclick="switchOS('linux')">Linux</button>
+    </div>
+
+    <div id="os-win" class="os-content active">
+      <div class="code-block">
+        <button class="copy-btn" onclick="copyCode('win')">복사</button>
+        <span id="code-win">powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/johnsnow-nam/gemma4/master/install.ps1 | iex"</span>
+      </div>
+    </div>
+    <div id="os-mac" class="os-content">
+      <div class="code-block">
+        <button class="copy-btn" onclick="copyCode('mac')">복사</button>
+        <span id="code-mac">curl -sSL https://raw.githubusercontent.com/johnsnow-nam/gemma4/master/install.sh | bash</span>
+      </div>
+    </div>
+    <div id="os-linux" class="os-content">
+      <div class="code-block">
+        <button class="copy-btn" onclick="copyCode('linux')">복사</button>
+        <span id="code-linux">curl -sSL https://raw.githubusercontent.com/johnsnow-nam/gemma4/master/install.sh | bash</span>
+      </div>
+    </div>
+
+    <div class="tip">💡 설치에 5~10분 정도 걸려요. AI 모델을 다운로드하기 때문이에요.</div>
+  </div>
+
+  <!-- Step 4: 실행 -->
+  <div class="step">
+    <span class="step-num">Step 4</span>
+    <h2>실행하기</h2>
+    <p>설치가 끝나면 바탕화면에 <strong>Gemma AI</strong> 바로가기가 생겨요. 더블클릭하면 바로 시작됩니다!</p>
+    <div class="tip">🎉 이제 AI에게 뭐든 물어보세요!</div>
+  </div>
+
+</main>
+
+<footer>
+  <p>문제가 생겼나요? <a href="https://github.com/johnsnow-nam/gemma4/issues" target="_blank">여기서 도움 요청하기</a></p>
+  <p style="margin-top:8px;">Made with ❤️ for kids who want to learn AI</p>
+</footer>
+
+<script>
+  function switchOS(os) {
+    document.querySelectorAll('.os-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.os-content').forEach(c => c.classList.remove('active'));
+    event.target.classList.add('active');
+    document.getElementById('os-' + os).classList.add('active');
+  }
+  function copyCode(os) {
+    const text = document.getElementById('code-' + os).innerText;
+    navigator.clipboard.writeText(text).then(() => {
+      event.target.innerText = '완료!';
+      setTimeout(() => event.target.innerText = '복사', 1500);
+    });
+  }
+</script>
+
+</body>
+</html>
